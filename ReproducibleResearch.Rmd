@@ -1,0 +1,116 @@
+Reproducible Research Assignment 1
+==================================
+
+##Loading and preprocessing the data
+
+Below, I first require the data.table package.
+
+```{r}
+require(data.table)
+```
+
+I then download the file into the working folder of my RStudio.
+
+```{r}
+x <- "http://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip"
+y <- "./downloaded.zip"
+download.file(x, destfile=y, mode="wb")
+```
+
+The downloaded file is then unzipped. The "for" function checks how many files there are in the zipped folder, and selects the ".csv" file for loading. The resulting ".csv" file" is loaded under "mydata"
+
+```{r}
+unzip(y)
+    listoffiles <<- unzip(y, list=T)
+    for (i in 1:length(listoffiles$Name))
+    {
+      if (grepl ("csv", listoffiles[i]$Name) == TRUE) {
+        mydata <<- fread(paste("./", listoffiles[i]$Name, sep=""))
+      }
+  else {
+    mydata <<- fread(y)
+  }
+}
+```
+
+##What is the mean total number of steps taken per day?
+
+I then used the tapply function to iterate across the file, so that I can group 5-minute intervals in to days. I then inlcuded the histogram. Next, I calculated the mean and median number of steps for each day.
+
+```{r}
+AggregatedDates<- tapply(mydata$steps, mydata$date, FUN=sum)
+
+#Breaks are set at 61, as there are 61 days from October to November.
+hist(AggregatedDates, breaks = 61, xlab = "Date", ylab = "Steps", main = "Total number of steps taken per day")
+mean(AggregatedDates, na.rm = T)
+median(AggregatedDates, na.rm = T)
+```
+
+##What is the average daily activity pattern?
+
+Next, I found out the average number of steps taken for each interval before plotting a line graph.
+
+```{r}
+dailymean <- dailymean <- aggregate(steps~interval, mydata, mean)
+plot(dailymean, type='l', xlab = "Interval", ylab = "Average Daily Steps", main = "Average Daily Activity Pattern")
+```
+
+I then print the interval which has the highest number of steps.
+
+```{r}
+temp <- dailymean[max(dailymean$steps),] 
+temp$interval
+```
+
+##Imputing missing values
+
+Here, I sum the total number of NAs in the dataset.
+
+```{r}
+sum(is.na(mydata))
+```
+
+I created a new dataset "newmydataset", then replaced it with the mean of steps. Steps are the only source of NAs in this dataset.
+
+```{r}
+newmydata <- mydata
+sum(is.na(newmydata)) == sum(is.na(newmydata$steps))
+mydata$steps[is.na(newmydata$steps)] <- mean(newmydata$steps, na.rm=T)
+```
+
+I then repeat the first portion by aggregating 5-minute interval into days.
+
+```{r}
+NewAggregatedDates<- tapply(newmydata$steps, newmydata$date, FUN=sum)
+
+#Breaks are set at 61, as there are 61 days from October to November.
+hist(NewAggregatedDates, breaks = 61, xlab = "Date", ylab = "Steps", main = "Total number of steps taken per day")
+mean(NewAggregatedDates, na.rm = T)
+median(NewAggregatedDates, na.rm = T)
+```
+
+The median was different, because I replaced the NA values with the mean of steps. This resulted in a tendency for the median to regress towards the given value of the mean.
+
+##Are there differences in activity patterns between weekdays and weekends?
+
+We first create a new factor variable in the dataset with two levels - "weekday" and "weekend" indicating whether a given date is a weekday or weekend day.
+
+```{r}
+weekday.or.weekend <- function(date) {
+    day <- weekdays(date)
+    if (day %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")) 
+        return("weekday") else if (day %in% c("Saturday", "Sunday")) 
+        return("weekend") else stop("invalid date")
+}
+newmydata$date <- as.Date(newmydata$date)
+newmydata$day <- sapply(newmydata$date, FUN = weekday.or.weekend)
+```
+
+Then we make a panel plot containing a time series plot of the average number of of steps taken in each 5-minute interval across all weekday days or weekend days.
+
+```{r}
+require(ggplot2)
+averages <- aggregate(steps ~ interval + day, data = newmydata, mean)
+ggplot(averages, aes(interval, steps)) + geom_line() + facet_grid(day ~ .) + 
+    xlab("5-minute interval") + ylab("Number of steps")
+```
